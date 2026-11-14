@@ -55,6 +55,7 @@ class CheckedQuery:
     sql: str
     tables: tuple[str, ...]
     limit_added: bool
+    row_cap: int
 
 
 def check(sql: str, policy: Policy) -> CheckedQuery:
@@ -114,4 +115,5 @@ def check(sql: str, policy: Policy) -> CheckedQuery:
         sql=tree.sql(dialect=policy.dialect),
         tables=tuple(sorted(set(tables))),
         limit_added=limit_added,
+        row_cap=policy.max_rows,
     )
