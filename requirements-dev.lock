@@ -22,6 +22,8 @@ defusedxml==0.7.1
     # via py-serializable
 distlib==0.4.4
     # via virtualenv
+duckdb==2.0.0
+    # via data-analyst-agent (pyproject.toml)
 filelock==4.2.9
     # via
     #   cachecontrol
@@ -105,6 +107,8 @@ ruff==0.17.4
     # via data-analyst-agent (pyproject.toml)
 sortedcontainers==2.4.0
     # via cyclonedx-python-lib
+sqlglot==30.31.0
+    # via data-analyst-agent (pyproject.toml)
 tomli==2.5.0
     # via pip-audit
 tomli-w==1.2.0
