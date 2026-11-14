@@ -12,6 +12,9 @@ license = { text = "MIT" }
 authors = [{ name = "Mohammad Azam" }]
 dependencies = ["duckdb>=1.1", "sqlglot>=25"]
 
+[project.scripts]
+analyst = "data_analyst_agent.cli:main"
+
 [project.optional-dependencies]
 dev = ["pytest>=8", "pytest-cov>=5", "ruff>=0.6", "mypy>=1.10", "pre-commit>=3.7", "pip-audit>=2.7"]
 
