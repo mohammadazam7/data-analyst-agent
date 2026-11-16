@@ -5,9 +5,9 @@ import duckdb
 import pytest
 
 from data_analyst_agent.agent import AgentError, ask, new_trace_path
-from data_analyst_agent.guardrails import Policy
+from data_analyst_agent.guardrails import CheckedQuery, Policy
 from data_analyst_agent.providers import ScriptedProvider
-from data_analyst_agent.warehouse import DuckDBWarehouse
+from data_analyst_agent.warehouse import DuckDBWarehouse, QueryTimeout, Result
 
 
 @pytest.fixture
@@ -100,10 +100,24 @@ def test_gives_up_after_the_repair_budget_is_spent(
     assert steps[-1] == "failed"
 
 
+class TimesOutOnce(DuckDBWarehouse):
+    """Fails the first query the way a real timeout does, without depending on timing."""
+
+    def __init__(self, path: Path) -> None:
+        super().__init__(path, ["marts"])
+        self.runs = 0
+
+    def run(self, query: CheckedQuery) -> Result:
+        self.runs += 1
+        if self.runs == 1:
+            raise QueryTimeout("query ran longer than 30 s")
+        return super().run(query)
+
+
 def test_feeds_back_a_query_timeout_as_a_repair(
     warehouse: DuckDBWarehouse, policy: Policy, tmp_path: Path
 ) -> None:
-    slow = DuckDBWarehouse(warehouse.path, ["marts"], timeout_s=0.001)
+    slow = TimesOutOnce(warehouse.path)
     provider = ScriptedProvider(
         [
             "```sql\nselect count(*) n from marts.cases, marts.cases b, marts.cases c\n```",
@@ -116,5 +130,6 @@ def test_feeds_back_a_query_timeout_as_a_repair(
     result = ask("how many cases?", provider, slow, policy, trace_path, max_repairs=2)
 
     assert result.attempts == 2
+    assert "longer than 30 s" in provider.calls[1][-1]["content"]
     steps = [json.loads(line)["step"] for line in trace_path.read_text().splitlines()]
     assert "query_error" in steps
