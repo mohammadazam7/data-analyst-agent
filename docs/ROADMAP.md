@@ -4,7 +4,7 @@ Target: v1.0 on **Dec 31, 2026**. Each milestone ends with a pull request, a tag
 release and a changelog entry.
 
 - [x] **M0 (Nov 9): foundation.** Repository, CI, design doc, roadmap.
-- [ ] **M1 (Nov 13 to 20): the core loop.** Warehouse interface with a DuckDB connector,
+- [x] **M1 (Nov 13 to 20): the core loop.** Warehouse interface with a DuckDB connector,
   schema introspection, SQL guardrails (parse, refuse anything but a single read, budgets,
   timeouts), a model-provider interface (hosted APIs and any OpenAI-compatible local
   endpoint) with a scripted provider for deterministic tests, the plan, write, check and

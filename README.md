@@ -5,8 +5,9 @@ products drove the drop in on-time deliveries last quarter?" and it finds the ri
 writes SQL, runs it read-only, checks the result, and explains the answer with the query
 it used, so you can verify every number.
 
-> **Status:** design stage. The design doc and roadmap are written; the agent loop, guardrails
-> and the first warehouse connector are being built now. Nothing below is measured yet, and
+> **Status:** the core loop works on DuckDB: guardrails, a read-only warehouse, a provider
+> interface and `analyst ask` are built and tested. Grounding in dbt docs and metric
+> layers, result checks and the benchmark come next. Nothing below is measured yet, and
 > no accuracy figure will appear here until the benchmark has produced it.
 
 ## Why another text-to-SQL tool
@@ -45,13 +46,15 @@ flowchart LR
 Every step is traced, so a run can be replayed and audited: the plan, each query, each
 check and why it passed or failed.
 
-## Planned interfaces
+## Interfaces
 
 ```bash
-pip install data-analyst-agent            # not published yet
-analyst ask "What was SLA attainment by tier last month?" --warehouse duckdb:///support.duckdb
-analyst bench --suite support-bi --model <provider:model>
-analyst mcp                                # serve the agent as an MCP server for other agents
+pip install -e .                           # not published to PyPI yet
+export ANALYST_BASE_URL=http://localhost:11434/v1 ANALYST_MODEL=<model>   # any OpenAI-compatible endpoint
+analyst ask "What was SLA attainment by tier last month?" \
+  --warehouse duckdb:///support.duckdb --schema marts      # works today
+analyst bench --suite support-bi --model <provider:model>   # planned, M2
+analyst mcp                                # planned, M3: serve the agent to other agents
 ```
 
 ## Benchmark
