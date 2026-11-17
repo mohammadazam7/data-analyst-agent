@@ -6,6 +6,8 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+## [0.1.0] - 2026-11-17
+
 ### Added
 - SQL guardrails: a model-written query must parse as one read-only statement, read only
   from allowed schemas and carry a row limit; file-reading functions are refused.
