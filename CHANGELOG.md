@@ -10,6 +10,8 @@ All notable changes to this project are documented here. The format follows
 - Execution-accuracy scoring: results compared as values, ignoring column names,
   column order and (unless the question asks for one) row order, with a numeric
   tolerance of 1e-6.
+- Benchmark suites in TOML, checked on load (every gold query must pass the agent's
+  own guardrails), and a first suite of 12 questions over the commerce marts.
 
 ## [0.1.0] - 2026-11-17
 
