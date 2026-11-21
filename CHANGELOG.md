@@ -6,6 +6,11 @@ All notable changes to this project are documented here. The format follows
 
 ## [Unreleased]
 
+### Added
+- Execution-accuracy scoring: results compared as values, ignoring column names,
+  column order and (unless the question asks for one) row order, with a numeric
+  tolerance of 1e-6.
+
 ## [0.1.0] - 2026-11-17
 
 ### Added
