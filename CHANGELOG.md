@@ -12,6 +12,9 @@ All notable changes to this project are documented here. The format follows
   tolerance of 1e-6.
 - Benchmark suites in TOML, checked on load (every gold query must pass the agent's
   own guardrails), and a first suite of 12 questions over the commerce marts.
+- `analyst bench`: asks every question of a suite, scores each answer against its
+  gold query and writes a Markdown report with accuracy per tag. `--gold` answers
+  with the gold queries to check a suite and the harness.
 
 ## [0.1.0] - 2026-11-17
 

@@ -6,9 +6,9 @@ writes SQL, runs it read-only, checks the result, and explains the answer with t
 it used, so you can verify every number.
 
 > **Status:** the core loop works on DuckDB: guardrails, a read-only warehouse, a provider
-> interface and `analyst ask` are built and tested. Grounding in dbt docs and metric
-> layers, result checks and the benchmark come next. Nothing below is measured yet, and
-> no accuracy figure will appear here until the benchmark has produced it.
+> interface and `analyst ask` are built and tested, and `analyst bench` scores the agent
+> on a question suite. Grounding in dbt docs and metric layers and result checks come
+> next. No model accuracy figure appears here until the benchmark has produced it.
 
 ## Why another text-to-SQL tool
 
@@ -68,7 +68,22 @@ realistic, tested dbt models rather than toy tables:
 | commerce | [ecommerce-data-ai-platform](https://github.com/mohammadazam7/ecommerce-data-ai-platform) | nine source tables, per-order customer ids, out-of-order milestones, Portuguese category names |
 
 Each question has a gold query; an answer counts as correct when its result matches the
-gold result. Results will be reported by model, with cost and latency per question.
+gold result, with column names, column order and (unless the question asks for an
+order) row order ignored. The commerce suite has 12 questions so far
+([benchmarks/commerce](benchmarks/commerce)); the support-bi suite comes next.
+
+```bash
+# check the suite and the harness: answering with the gold queries must score 12 of 12
+analyst bench benchmarks/commerce/questions.toml --warehouse duckdb:///commerce.duckdb --gold
+# score a model behind any OpenAI-compatible endpoint
+ANALYST_BASE_URL=http://localhost:8080/v1 ANALYST_MODEL=my-model \
+  analyst bench benchmarks/commerce/questions.toml --warehouse duckdb:///commerce.duckdb \
+  --out results.md --hardware "what it ran on"
+```
+
+The gold run scores 12 of 12 on the marts built from the pinned Olist commit, which
+checks the suite and the harness, not any model. No model has been scored yet; results
+will be reported by model, with latency per question, once they have been measured.
 
 ## Documentation
 

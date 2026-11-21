@@ -8,13 +8,18 @@ order, so row order is scored). See ``benchmarks/commerce/questions.toml``.
 
 from __future__ import annotations
 
+import time
 import tomllib
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
+from data_analyst_agent.agent import AgentError, ask
 from data_analyst_agent.guardrails import GuardrailError, Policy, check
+from data_analyst_agent.providers import Message, Provider, ProviderError
+from data_analyst_agent.scoring import Comparison, compare
+from data_analyst_agent.warehouse import DuckDBWarehouse
 
 
 class SuiteError(ValueError):
@@ -95,3 +100,120 @@ def check_gold(suite: Suite, questions: Sequence[Question] | None = None) -> Non
         except GuardrailError as error:
             raise SuiteError(f"gold query of {q.id} is refused: {error}") from error
 
+
+# Running a suite.
+
+
+@dataclass(frozen=True)
+class QuestionResult:
+    id: str
+    tags: tuple[str, ...]
+    correct: bool
+    reason: str
+    seconds: float
+    attempts: int
+    sql: str | None
+
+
+@dataclass(frozen=True)
+class SuiteResult:
+    suite: str
+    results: tuple[QuestionResult, ...]
+
+    @property
+    def accuracy(self) -> float:
+        return sum(r.correct for r in self.results) / len(self.results)
+
+    def by_tag(self) -> dict[str, tuple[int, int]]:
+        """Correct and total per tag."""
+        counts: dict[str, list[int]] = {}
+        for r in self.results:
+            for tag in r.tags:
+                entry = counts.setdefault(tag, [0, 0])
+                entry[0] += r.correct
+                entry[1] += 1
+        return {tag: (c, n) for tag, (c, n) in sorted(counts.items())}
+
+
+class GoldProvider:
+    """Answers each suite question with its own gold query.
+
+    Running a suite with it must score 100%: anything less means the harness, the
+    guardrails or the warehouse disagree with the suite, not that a model is wrong.
+    """
+
+    def __init__(self, suite: Suite) -> None:
+        self._gold = {q.question: q.gold for q in suite.questions}
+        self._pending: str | None = None
+
+    def complete(self, messages: Sequence[Message]) -> str:
+        if self._pending is not None:
+            self._pending = None
+            return "Answered with the gold query."
+        question = next(m["content"] for m in messages if m["role"] == "user")
+        self._pending = question
+        return f"```sql\n{self._gold[question]}\n```"
+
+
+def run_suite(
+    suite: Suite,
+    provider: Provider,
+    warehouse: DuckDBWarehouse,
+    trace_dir: Path,
+    *,
+    max_repairs: int = 2,
+    clock: Callable[[], float] = time.perf_counter,
+) -> SuiteResult:
+    """Ask every question, run its gold query, and score the agent's result against it."""
+    policy = suite.policy()
+    results = []
+    for q in suite.questions:
+        gold = warehouse.run(check(q.gold, policy))
+        started = clock()
+        try:
+            answer = ask(
+                q.question,
+                provider,
+                warehouse,
+                policy,
+                trace_dir / f"{suite.name}-{q.id}.jsonl",
+                max_repairs=max_repairs,
+            )
+        except (AgentError, ProviderError) as error:
+            results.append(
+                QuestionResult(
+                    q.id, q.tags, False, f"no answer: {error}", clock() - started, 0, None
+                )
+            )
+            continue
+        seconds = clock() - started
+        if answer.result.truncated:
+            verdict = Comparison(False, "result was cut at the row limit")
+        else:
+            verdict = compare(gold.rows, answer.result.rows, ordered=q.ordered)
+        results.append(
+            QuestionResult(
+                q.id, q.tags, verdict.match, verdict.reason, seconds, answer.attempts, answer.sql
+            )
+        )
+    return SuiteResult(suite.name, tuple(results))
+
+
+def format_results(result: SuiteResult, *, model: str, hardware: str) -> str:
+    """A Markdown report: the headline, accuracy per tag, and every question."""
+    correct = sum(r.correct for r in result.results)
+    total = len(result.results)
+    lines = [
+        f"# {result.suite} suite: {model}",
+        "",
+        f"Execution accuracy: **{correct} of {total}** ({result.accuracy:.0%}). {hardware}.",
+        "",
+        "| Tag | Correct |",
+        "|---|---|",
+    ]
+    lines += [f"| {tag} | {c} of {n} |" for tag, (c, n) in result.by_tag().items()]
+    lines += ["", "| Question | Result | Attempts | Seconds | Why |", "|---|---|---|---|---|"]
+    for r in result.results:
+        mark = "correct" if r.correct else "wrong"
+        lines.append(f"| {r.id} | {mark} | {r.attempts} | {r.seconds:.2f} | {r.reason} |")
+    return "\n".join(lines) + "\n"
