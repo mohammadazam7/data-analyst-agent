@@ -15,6 +15,7 @@ from pathlib import Path
 
 from data_analyst_agent.agent import AgentError, AgentResult, ask, new_trace_path
 from data_analyst_agent.bench import GoldProvider, SuiteError, format_results, load_suite, run_suite
+from data_analyst_agent.grounding import DbtDocs, GroundingError
 from data_analyst_agent.guardrails import Policy
 from data_analyst_agent.providers import (
     OpenAICompatibleProvider,
@@ -67,6 +68,7 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--query-timeout", type=float, default=30.0)
     ask_parser.add_argument("--max-repairs", type=int, default=2)
     ask_parser.add_argument("--trace-dir", type=Path, default=DEFAULT_TRACE_DIR)
+    ask_parser.add_argument("--dbt-manifest", type=Path, help=MANIFEST_HELP)
 
     bench_parser = sub.add_parser("bench", help="score the agent on a question suite")
     bench_parser.add_argument(
@@ -81,11 +83,20 @@ def build_arg_parser() -> argparse.ArgumentParser:
     bench_parser.add_argument("--max-repairs", type=int, default=2)
     bench_parser.add_argument("--query-timeout", type=float, default=30.0)
     bench_parser.add_argument("--trace-dir", type=Path, default=DEFAULT_TRACE_DIR)
+    bench_parser.add_argument("--dbt-manifest", type=Path, help=MANIFEST_HELP)
     bench_parser.add_argument("--out", type=Path, help="write the Markdown report here")
     bench_parser.add_argument(
         "--hardware", default="Hardware not stated", help="described in the report, e.g. '2 vCPUs'"
     )
     return parser
+
+
+MANIFEST_HELP = "a dbt target/manifest.json whose model and column descriptions go in the prompt"
+
+
+def _docs(args: argparse.Namespace) -> DbtDocs | None:
+    path: Path | None = getattr(args, "dbt_manifest", None)
+    return DbtDocs.from_manifest(path) if path is not None else None
 
 
 def run_ask(args: argparse.Namespace, provider: Provider) -> AgentResult:
@@ -104,6 +115,7 @@ def run_ask(args: argparse.Namespace, provider: Provider) -> AgentResult:
             policy,
             trace_path,
             max_repairs=args.max_repairs,
+            docs=_docs(args),
         )
     finally:
         warehouse.close()
@@ -124,6 +136,7 @@ def run_bench(args: argparse.Namespace, provider: Provider | None, model: str) -
             warehouse,
             args.trace_dir,
             max_repairs=args.max_repairs,
+            docs=_docs(args),
         )
     finally:
         warehouse.close()
@@ -152,7 +165,7 @@ def main(argv: list[str] | None = None) -> int:
             if args.out is not None:
                 args.out.write_text(report, encoding="utf-8")
             return 0
-    except (CLIError, ProviderError, AgentError, SuiteError) as err:
+    except (CLIError, ProviderError, AgentError, SuiteError, GroundingError) as err:
         print(f"analyst: {err}", file=sys.stderr)
         return 1
     return 1

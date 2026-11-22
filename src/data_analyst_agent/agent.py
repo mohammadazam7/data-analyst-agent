@@ -16,6 +16,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from data_analyst_agent.grounding import DbtDocs
 from data_analyst_agent.guardrails import GuardrailError, Policy, check
 from data_analyst_agent.providers import Message, Provider, ProviderError
 from data_analyst_agent.warehouse import DuckDBWarehouse, QueryTimeout, Result
@@ -123,12 +124,15 @@ def ask(
     policy: Policy,
     trace_path: Path,
     max_repairs: int = 2,
+    docs: DbtDocs | None = None,
 ) -> AgentResult:
     """Answer ``question`` against ``warehouse``, writing each step to ``trace_path``."""
     trace = Trace(trace_path)
     trace.question(question)
 
-    tables = "\n".join(t.describe() for t in warehouse.tables())
+    tables = "\n".join(
+        docs.describe(t) if docs is not None else t.describe() for t in warehouse.tables()
+    )
     messages: list[Message] = [
         {"role": "system", "content": SYSTEM_PROMPT.format(tables=tables)},
         {"role": "user", "content": question},

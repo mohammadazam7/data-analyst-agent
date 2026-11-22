@@ -7,8 +7,9 @@ it used, so you can verify every number.
 
 > **Status:** the core loop works on DuckDB: guardrails, a read-only warehouse, a provider
 > interface and `analyst ask` are built and tested, and `analyst bench` scores the agent
-> on a question suite. Grounding in dbt docs and metric layers and result checks come
-> next. No model accuracy figure appears here until the benchmark has produced it.
+> on a question suite, with dbt model and column descriptions in the prompt when a
+> manifest is given. Metric layers and result checks come next. No model accuracy
+> figure appears here until the benchmark has produced it.
 
 ## Why another text-to-SQL tool
 

@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Any
 
 from data_analyst_agent.agent import AgentError, ask
+from data_analyst_agent.grounding import DbtDocs
 from data_analyst_agent.guardrails import GuardrailError, Policy, check
 from data_analyst_agent.providers import Message, Provider, ProviderError
 from data_analyst_agent.scoring import Comparison, compare
@@ -163,6 +164,7 @@ def run_suite(
     *,
     max_repairs: int = 2,
     clock: Callable[[], float] = time.perf_counter,
+    docs: DbtDocs | None = None,
 ) -> SuiteResult:
     """Ask every question, run its gold query, and score the agent's result against it."""
     policy = suite.policy()
@@ -178,6 +180,7 @@ def run_suite(
                 policy,
                 trace_dir / f"{suite.name}-{q.id}.jsonl",
                 max_repairs=max_repairs,
+                docs=docs,
             )
         except (AgentError, ProviderError) as error:
             results.append(

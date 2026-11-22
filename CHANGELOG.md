@@ -17,6 +17,8 @@ All notable changes to this project are documented here. The format follows
   with the gold queries to check a suite and the harness.
 - A support-bi suite of 12 questions over cloud-support-bi's marts, including type 2
   customer history and the daily backlog.
+- `--dbt-manifest` on `ask` and `bench`: model and column descriptions from a dbt
+  project's `manifest.json` are put in the prompt next to the tables they describe.
 
 ## [0.1.0] - 2026-11-17
 
