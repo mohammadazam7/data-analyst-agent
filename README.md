@@ -69,8 +69,8 @@ realistic, tested dbt models rather than toy tables:
 
 Each question has a gold query; an answer counts as correct when its result matches the
 gold result, with column names, column order and (unless the question asks for an
-order) row order ignored. The commerce suite has 12 questions so far
-([benchmarks/commerce](benchmarks/commerce)); the support-bi suite comes next.
+order) row order ignored. There are two suites of 12 questions so far,
+[commerce](benchmarks/commerce) and [support-bi](benchmarks/support-bi).
 
 ```bash
 # check the suite and the harness: answering with the gold queries must score 12 of 12
@@ -81,8 +81,8 @@ ANALYST_BASE_URL=http://localhost:8080/v1 ANALYST_MODEL=my-model \
   --out results.md --hardware "what it ran on"
 ```
 
-The gold run scores 12 of 12 on the marts built from the pinned Olist commit, which
-checks the suite and the harness, not any model. No model has been scored yet; results
+The gold run scores 12 of 12 on each suite's warehouse, which checks the suites and
+the harness, not any model. No model has been scored yet; results
 will be reported by model, with latency per question, once they have been measured.
 
 ## Documentation

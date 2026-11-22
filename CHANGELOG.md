@@ -15,6 +15,8 @@ All notable changes to this project are documented here. The format follows
 - `analyst bench`: asks every question of a suite, scores each answer against its
   gold query and writes a Markdown report with accuracy per tag. `--gold` answers
   with the gold queries to check a suite and the harness.
+- A support-bi suite of 12 questions over cloud-support-bi's marts, including type 2
+  customer history and the daily backlog.
 
 ## [0.1.0] - 2026-11-17
 

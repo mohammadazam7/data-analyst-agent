@@ -37,6 +37,12 @@ def test_the_commerce_suite_loads_and_every_gold_query_passes_the_guardrails() -
     assert all(q.gold.lower().startswith("select") for q in suite.questions)
 
 
+def test_the_support_bi_suite_loads() -> None:
+    suite = load_suite(SUITES / "support-bi" / "questions.toml")
+    assert suite.name == "support-bi"
+    assert len(suite.questions) == 12
+
+
 def test_defaults_for_tags_and_order() -> None:
     [q] = parse_suite(_suite()).questions
     assert (q.tags, q.ordered) == ((), False)
