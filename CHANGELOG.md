@@ -19,6 +19,13 @@ All notable changes to this project are documented here. The format follows
   customer history and the daily backlog.
 - `--dbt-manifest` on `ask` and `bench`: model and column descriptions from a dbt
   project's `manifest.json` are put in the prompt next to the tables they describe.
+- Result checks: an empty result, an all-null column, a result cut at the row limit
+  and repeated rows are flagged, recorded in the trace and passed to the answer so it
+  says what is doubtful.
+
+### Fixed
+- The answer prompt now includes the question; before, it asked the model to answer
+  "the original question" without showing it.
 
 ## [0.1.0] - 2026-11-17
 
