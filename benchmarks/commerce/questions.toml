@@ -1,0 +1,130 @@
+# Questions over the order and customer marts of ecommerce-data-ai-platform
+# (marts.fct_orders and marts.dim_customers, built from the Olist public data set).
+# Each gold query was run against the marts built from the pinned Olist commit; the
+# expected answer is noted so a changed warehouse shows up as a changed gold result.
+# Wording is meant to have one right answer: where a question could be read two ways
+# (a share as 0.07 or 7%), it says which.
+
+name = "commerce"
+schemas = ["marts"]
+
+[[question]]
+id = "c01"
+tags = ["count"]
+question = "How many orders are there?"
+gold = "select count(*) from marts.fct_orders"
+# 99441
+
+[[question]]
+id = "c02"
+tags = ["count", "entity"]
+question = "How many different customers have placed at least one order?"
+gold = "select count(*) from marts.dim_customers"
+# 96096; counting customer_id instead of the person gives 99441
+
+[[question]]
+id = "c03"
+tags = ["count", "entity"]
+question = "How many customers have placed more than one order?"
+gold = "select count(*) from marts.dim_customers where orders > 1"
+# 2997
+
+[[question]]
+id = "c04"
+tags = ["ratio", "filter"]
+question = """Of the orders that were delivered, what share arrived after the promised \
+delivery date? Give it as a fraction between 0 and 1."""
+gold = """
+select avg(case when delivered_late then 1.0 else 0.0 end)
+from marts.fct_orders
+where delivered_at is not null
+"""
+# 0.06774
+
+[[question]]
+id = "c05"
+tags = ["group"]
+question = "How many orders are there in each order status?"
+gold = "select order_status, count(*) from marts.fct_orders group by order_status"
+# delivered 96478, shipped 1107, canceled 625, ... (8 statuses)
+
+[[question]]
+id = "c06"
+tags = ["group", "top-k"]
+question = "Which five states have the most customers, and how many customers does each have?"
+gold = """
+select state, count(*) as customers
+from marts.dim_customers
+group by state
+order by customers desc
+limit 5
+"""
+# SP 40296, RJ 12381, MG 11252, RS 5276, PR 4879
+
+[[question]]
+id = "c07"
+tags = ["aggregate", "filter", "date"]
+question = """What was the average order value, items plus freight, of orders placed in \
+2017 that had at least one item?"""
+gold = """
+select avg(order_value)
+from marts.fct_orders
+where items > 0 and year(purchased_at) = 2017
+"""
+# 160.27
+
+[[question]]
+id = "c08"
+tags = ["group", "date"]
+question = """How many orders were placed in each month of 2018? Give the month as its \
+number, 1 to 12."""
+gold = """
+select month(purchased_at) as month, count(*)
+from marts.fct_orders
+where year(purchased_at) = 2018
+group by month
+"""
+# 10 rows, January (7269) to October; the data stops in October 2018
+
+[[question]]
+id = "c09"
+tags = ["group", "filter"]
+question = "Among orders with a recorded payment, how many used each main payment type?"
+gold = """
+select main_payment_type, count(*)
+from marts.fct_orders
+where main_payment_type is not null
+group by main_payment_type
+"""
+# credit_card 74975, boleto 19784, voucher 3151, debit_card 1527, not_defined 3
+
+[[question]]
+id = "c10"
+tags = ["aggregate", "filter"]
+question = """What is the median time from purchase to delivery, in days, for orders that \
+were delivered?"""
+gold = """
+select median(days_to_deliver)
+from marts.fct_orders
+where delivered_at is not null
+"""
+# 10.21 (fractional days, from hours)
+
+[[question]]
+id = "c11"
+tags = ["count", "filter"]
+question = "How many orders contain items from more than one seller?"
+gold = "select count(*) from marts.fct_orders where sellers > 1"
+# 1278
+
+[[question]]
+id = "c12"
+tags = ["top-k"]
+question = "Which customer has the highest lifetime order value, and what is that value?"
+gold = """
+select customer_unique_id, lifetime_order_value
+from marts.dim_customers
+order by lifetime_order_value desc
+limit 1
+"""
+# 0a0a92112bd4c708ca5fde585afaa872, 13664.08

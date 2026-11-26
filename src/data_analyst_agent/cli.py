@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 
 from data_analyst_agent.agent import AgentError, AgentResult, ask, new_trace_path
+from data_analyst_agent.bench import GoldProvider, SuiteError, format_results, load_suite, run_suite
+from data_analyst_agent.grounding import DbtDocs, GroundingError
 from data_analyst_agent.guardrails import Policy
 from data_analyst_agent.providers import (
     OpenAICompatibleProvider,
@@ -66,7 +68,35 @@ def build_arg_parser() -> argparse.ArgumentParser:
     ask_parser.add_argument("--query-timeout", type=float, default=30.0)
     ask_parser.add_argument("--max-repairs", type=int, default=2)
     ask_parser.add_argument("--trace-dir", type=Path, default=DEFAULT_TRACE_DIR)
+    ask_parser.add_argument("--dbt-manifest", type=Path, help=MANIFEST_HELP)
+
+    bench_parser = sub.add_parser("bench", help="score the agent on a question suite")
+    bench_parser.add_argument(
+        "suite", type=Path, help="a suite file, e.g. benchmarks/commerce/questions.toml"
+    )
+    bench_parser.add_argument("--warehouse", required=True, help="e.g. duckdb:///commerce.duckdb")
+    bench_parser.add_argument(
+        "--gold",
+        action="store_true",
+        help="answer with the gold queries instead of a model, to check the suite and harness",
+    )
+    bench_parser.add_argument("--max-repairs", type=int, default=2)
+    bench_parser.add_argument("--query-timeout", type=float, default=30.0)
+    bench_parser.add_argument("--trace-dir", type=Path, default=DEFAULT_TRACE_DIR)
+    bench_parser.add_argument("--dbt-manifest", type=Path, help=MANIFEST_HELP)
+    bench_parser.add_argument("--out", type=Path, help="write the Markdown report here")
+    bench_parser.add_argument(
+        "--hardware", default="Hardware not stated", help="described in the report, e.g. '2 vCPUs'"
+    )
     return parser
+
+
+MANIFEST_HELP = "a dbt target/manifest.json whose model and column descriptions go in the prompt"
+
+
+def _docs(args: argparse.Namespace) -> DbtDocs | None:
+    path: Path | None = getattr(args, "dbt_manifest", None)
+    return DbtDocs.from_manifest(path) if path is not None else None
 
 
 def run_ask(args: argparse.Namespace, provider: Provider) -> AgentResult:
@@ -85,9 +115,32 @@ def run_ask(args: argparse.Namespace, provider: Provider) -> AgentResult:
             policy,
             trace_path,
             max_repairs=args.max_repairs,
+            docs=_docs(args),
         )
     finally:
         warehouse.close()
+
+
+def run_bench(args: argparse.Namespace, provider: Provider | None, model: str) -> str:
+    """The ``bench`` subcommand: score a suite and return the Markdown report."""
+    suite = load_suite(args.suite)
+    db_path = parse_duckdb_uri(args.warehouse)
+    if not db_path.exists():
+        raise CLIError(f"no warehouse file at {db_path}")
+    warehouse = DuckDBWarehouse(db_path, suite.schemas, timeout_s=args.query_timeout)
+    try:
+        args.trace_dir.mkdir(parents=True, exist_ok=True)
+        result = run_suite(
+            suite,
+            provider if provider is not None else GoldProvider(suite),
+            warehouse,
+            args.trace_dir,
+            max_repairs=args.max_repairs,
+            docs=_docs(args),
+        )
+    finally:
+        warehouse.close()
+    return format_results(result, model=model, hardware=args.hardware)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -102,7 +155,17 @@ def main(argv: list[str] | None = None) -> int:
             print()
             print(result.sql)
             return 0
-    except (CLIError, ProviderError, AgentError) as err:
+        if args.command == "bench":
+            if args.gold:
+                report = run_bench(args, None, "gold queries")
+            else:
+                config = config_from_env(os.environ)
+                report = run_bench(args, OpenAICompatibleProvider(config), config.model)
+            print(report, end="")
+            if args.out is not None:
+                args.out.write_text(report, encoding="utf-8")
+            return 0
+    except (CLIError, ProviderError, AgentError, SuiteError, GroundingError) as err:
         print(f"analyst: {err}", file=sys.stderr)
         return 1
     return 1

@@ -1,0 +1,122 @@
+# Questions over the marts of cloud-support-bi: one synthetic year of cloud support cases
+# (about 90,000), with customer tiers kept as type 2 history and SLA targets that depend
+# on priority and on the tier the customer held when the case was opened.
+# Each gold query was run against the warehouse `make models` builds from the project's
+# fixed seed; the expected answer is noted beside it.
+
+name = "support-bi"
+schemas = ["marts"]
+
+[[question]]
+id = "s01"
+tags = ["count"]
+question = "How many support cases were opened?"
+gold = "select count(*) from marts.fct_cases"
+# 89708
+
+[[question]]
+id = "s02"
+tags = ["count", "history"]
+question = "How many customers are there?"
+gold = "select count(*) from marts.dim_customer where is_current"
+# 1200; counting every row of the type 2 dimension gives 1268
+
+[[question]]
+id = "s03"
+tags = ["count", "history"]
+question = "How many customers have changed support tier at least once?"
+gold = """
+select count(*)
+from (
+    select customer_id
+    from marts.dim_customer
+    group by customer_id
+    having count(*) > 1
+)
+"""
+# 68
+
+[[question]]
+id = "s04"
+tags = ["group", "history"]
+question = "How many customers are on each support tier today?"
+gold = "select tier, count(*) from marts.dim_customer where is_current group by tier"
+# ENH 399, PREM 173, STD 628
+
+[[question]]
+id = "s05"
+tags = ["ratio"]
+question = """What share of cases met the first-response SLA? Give it as a fraction \
+between 0 and 1."""
+gold = """
+select avg(case when first_response_sla_met then 1.0 else 0.0 end)
+from marts.fct_cases
+"""
+# 0.78225
+
+[[question]]
+id = "s06"
+tags = ["ratio", "group", "history"]
+question = """What share of cases met the first-response SLA for each support tier the \
+customer held when the case was opened? Give each as a fraction between 0 and 1."""
+gold = """
+select tier_at_open, avg(case when first_response_sla_met then 1.0 else 0.0 end)
+from marts.fct_cases
+group by tier_at_open
+"""
+# ENH 0.78250, PREM 0.78292, STD 0.78193
+
+[[question]]
+id = "s07"
+tags = ["aggregate"]
+question = "What is the median first-response time in minutes?"
+gold = "select median(first_response_minutes) from marts.fct_cases"
+# 115.233
+
+[[question]]
+id = "s08"
+tags = ["group"]
+question = "How many cases were opened at each priority?"
+gold = "select priority, count(*) from marts.fct_cases group by priority"
+# P1 3585, P2 14425, P3 40419, P4 31279
+
+[[question]]
+id = "s09"
+tags = ["ratio"]
+question = "What fraction of cases were escalated?"
+gold = "select avg(case when is_escalated then 1.0 else 0.0 end) from marts.fct_cases"
+# 0.06926
+
+[[question]]
+id = "s10"
+tags = ["aggregate", "filter"]
+question = "What is the average CSAT score among cases that received a CSAT response?"
+gold = "select avg(csat_score) from marts.fct_cases where has_csat_response"
+# 4.036
+
+[[question]]
+id = "s11"
+tags = ["group", "join"]
+question = "How many cases were opened for each product family?"
+gold = """
+select p.product_family, count(*)
+from marts.fct_cases as f
+join marts.dim_product as p on p.product_code = f.product_code
+group by p.product_family
+"""
+# Compute 33550, Data analytics 16156, Databases 11091, ... (7 families)
+
+[[question]]
+id = "s12"
+tags = ["aggregate", "two-step"]
+question = """On an average day, how many cases are open in total across all products and \
+priorities?"""
+gold = """
+select avg(open_cases)
+from (
+    select backlog_date, sum(open_cases) as open_cases
+    from marts.fct_backlog_daily
+    group by backlog_date
+)
+"""
+# 595.86; averaging the per-product, per-priority rows instead gives 18.62

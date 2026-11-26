@@ -16,8 +16,10 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from data_analyst_agent.grounding import DbtDocs
 from data_analyst_agent.guardrails import GuardrailError, Policy, check
 from data_analyst_agent.providers import Message, Provider, ProviderError
+from data_analyst_agent.result_checks import ResultWarning, review
 from data_analyst_agent.warehouse import DuckDBWarehouse, QueryTimeout, Result
 
 _SQL_BLOCK = re.compile(r"```(?:sql)?\s*(.+?)\s*```", re.DOTALL | re.IGNORECASE)
@@ -37,6 +39,8 @@ single corrected ```sql block and nothing else.
 """
 
 ANSWER_PROMPT = """\
+Question: {question}
+
 The query
 
 ```sql
@@ -47,8 +51,12 @@ returned:
 
 {preview}
 
-Answer the original question in one or two plain sentences, using only this data.
+Answer the question in one or two plain sentences, using only this data.{warnings}
 """
+
+WARNINGS_NOTE = """
+These checks flagged the result; say plainly in the answer if they make it doubtful:
+{items}"""
 
 
 class AgentError(RuntimeError):
@@ -62,6 +70,7 @@ class AgentResult:
     result: Result
     answer: str
     attempts: int
+    warnings: tuple[ResultWarning, ...] = ()
 
 
 def _extract_sql(reply: str) -> str:
@@ -104,6 +113,15 @@ class Trace:
             }
         )
 
+    def warnings(self, attempt: int, found: list[ResultWarning]) -> None:
+        self._write(
+            {
+                "step": "warnings",
+                "attempt": attempt,
+                "warnings": [{"code": w.code, "message": w.message} for w in found],
+            }
+        )
+
     def answer(self, text: str) -> None:
         self._write({"step": "answer", "answer": text})
 
@@ -123,12 +141,15 @@ def ask(
     policy: Policy,
     trace_path: Path,
     max_repairs: int = 2,
+    docs: DbtDocs | None = None,
 ) -> AgentResult:
     """Answer ``question`` against ``warehouse``, writing each step to ``trace_path``."""
     trace = Trace(trace_path)
     trace.question(question)
 
-    tables = "\n".join(t.describe() for t in warehouse.tables())
+    tables = "\n".join(
+        docs.describe(t) if docs is not None else t.describe() for t in warehouse.tables()
+    )
     messages: list[Message] = [
         {"role": "system", "content": SYSTEM_PROMPT.format(tables=tables)},
         {"role": "user", "content": question},
@@ -167,11 +188,21 @@ def ask(
             continue
 
         trace.ran(attempt, result)
+        warnings = review(result)
+        if warnings:
+            trace.warnings(attempt, warnings)
+        note = (
+            WARNINGS_NOTE.format(items="\n".join(f"- {w.message}" for w in warnings))
+            if warnings
+            else ""
+        )
         answer_messages: list[Message] = [
             {"role": "system", "content": "You summarise query results plainly."},
             {
                 "role": "user",
-                "content": ANSWER_PROMPT.format(sql=checked.sql, preview=result.preview()),
+                "content": ANSWER_PROMPT.format(
+                    question=question, sql=checked.sql, preview=result.preview(), warnings=note
+                ),
             },
         ]
         try:
@@ -181,7 +212,7 @@ def ask(
             raise AgentError(f"model could not be reached: {err}") from err
         trace.model_reply("answer", answer_text)
         trace.answer(answer_text)
-        return AgentResult(question, checked.sql, result, answer_text, attempt)
+        return AgentResult(question, checked.sql, result, answer_text, attempt, tuple(warnings))
 
     trace.failed(last_reason)
     raise AgentError(f"gave up after {max_repairs + 1} attempts: {last_reason}")
