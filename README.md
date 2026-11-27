@@ -55,7 +55,8 @@ pip install -e .                           # not published to PyPI yet
 export ANALYST_BASE_URL=http://localhost:11434/v1 ANALYST_MODEL=<model>   # any OpenAI-compatible endpoint
 analyst ask "What was SLA attainment by tier last month?" \
   --warehouse duckdb:///support.duckdb --schema marts      # works today
-analyst bench --suite support-bi --model <provider:model>   # planned, M2
+analyst bench benchmarks/support-bi/questions.toml \
+  --warehouse duckdb:///support.duckdb                     # works today
 analyst mcp                                # planned, M3: serve the agent to other agents
 ```
 

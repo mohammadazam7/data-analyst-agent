@@ -10,8 +10,9 @@ release and a changelog entry.
   endpoint) with a scripted provider for deterministic tests, the plan, write, check and
   answer loop, run traces, and `analyst ask`.
 - [ ] **M2 (Nov 21 to Dec 2): the benchmark.** Question suites with gold queries over the
-  support-bi and commerce warehouses, execution-accuracy scoring, cost and latency per
-  question, `analyst bench`, and the first published results.
+  support-bi and commerce warehouses, execution-accuracy scoring and `analyst bench`
+  (released in 0.2.0); cost and latency per question and the first published results
+  are still open.
 - [ ] **M3 (Dec 3 to 12): grounded answers.** Reading dbt docs and metric layers, result
   checks and query repair, charts, answers that cite their SQL, and an MCP server.
 - [ ] **M4 (Dec 13 to 22): more warehouses and operations.** BigQuery and Postgres
